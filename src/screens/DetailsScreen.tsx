@@ -7,8 +7,10 @@ import { FlagImage } from '../components/FlagImage';
 import { InfoRow } from '../components/InfoRow';
 import { LoadingView } from '../components/LoadingView';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { StarRating } from '../components/StarRating';
 import { useFavorites } from '../hooks/useFavorites';
 import { useFetch } from '../hooks/useFetch';
+import { useVisited } from '../hooks/useVisited';
 import { AppStackScreenProps } from '../navigation/types';
 import { getByCode, getNeighbors } from '../services/countriesService';
 import { colors } from '../theme/colors';
@@ -20,6 +22,9 @@ type Props = AppStackScreenProps<'Details'>;
 export function DetailsScreen({ route, navigation }: Props) {
   const { code } = route.params;
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { isVisited, getRating, toggleVisited, setRating } = useVisited();
+  const visited = isVisited(code);
+  const rating = getRating(code);
 
   const { data: country, loading, error, refetch } = useFetch(
     (signal) => getByCode(code, signal),
@@ -77,6 +82,29 @@ export function DetailsScreen({ route, navigation }: Props) {
           onPress={() => toggleFavorite(country)}
           size={30}
         />
+      </View>
+
+      <View style={styles.visitedBox}>
+        <PrimaryButton
+          title={visited ? 'Visitado' : 'Já visitei'}
+          icon={visited ? 'checkmark-circle' : 'airplane-outline'}
+          variant={visited ? 'primary' : 'outline'}
+          selected={visited}
+          onPress={() => toggleVisited(country)}
+          accessibilityLabel={
+            visited
+              ? `Desmarcar ${country.name} como visitado`
+              : `Marcar ${country.name} como visitado`
+          }
+        />
+        {visited ? (
+          <View style={styles.ratingBlock}>
+            <Text style={styles.ratingLabel}>
+              {rating ? `Sua nota: ${rating} de 5` : 'Que nota você dá para esta viagem?'}
+            </Text>
+            <StarRating value={rating} onChange={(value) => setRating(country.code, value)} />
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.card}>
@@ -159,6 +187,22 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: fontSize.md,
     color: colors.textMuted,
+  },
+  visitedBox: {
+    marginTop: spacing.lg,
+    gap: spacing.md,
+  },
+  ratingBlock: {
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    ...cardShadow,
+  },
+  ratingLabel: {
+    marginBottom: spacing.xs,
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    color: colors.text,
   },
   card: {
     marginTop: spacing.lg,

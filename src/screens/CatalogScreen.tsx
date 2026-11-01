@@ -62,6 +62,11 @@ export function CatalogScreen({ navigation }: Props) {
             label="Abrir favoritos"
             onPress={() => navigation.navigate('Favorites')}
           />
+          <IconButton
+            icon="airplane-outline"
+            label="Abrir países visitados"
+            onPress={() => navigation.navigate('Visited')}
+          />
           <IconButton icon="log-out-outline" label="Sair da conta" onPress={confirmSignOut} />
         </View>
       ),
