@@ -18,6 +18,7 @@ import { LoadingView } from '../components/LoadingView';
 import { RegionFilter } from '../components/RegionFilter';
 import { useAuth } from '../hooks/useAuth';
 import { useCountries } from '../hooks/useCountries';
+import { useFavorites } from '../hooks/useFavorites';
 import { AppStackScreenProps } from '../navigation/types';
 import { CountrySummary } from '../types/country';
 import { colors } from '../theme/colors';
@@ -29,6 +30,7 @@ const keyExtractor = (item: CountrySummary) => item.code;
 
 export function CatalogScreen({ navigation }: Props) {
   const { signOut } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const {
     countries,
     totalCount,
@@ -55,6 +57,11 @@ export function CatalogScreen({ navigation }: Props) {
     navigation.setOptions({
       headerRight: () => (
         <View style={styles.headerActions}>
+          <IconButton
+            icon="heart-outline"
+            label="Abrir favoritos"
+            onPress={() => navigation.navigate('Favorites')}
+          />
           <IconButton icon="log-out-outline" label="Sair da conta" onPress={confirmSignOut} />
         </View>
       ),
@@ -69,10 +76,15 @@ export function CatalogScreen({ navigation }: Props) {
   const renderItem = useCallback<ListRenderItem<CountrySummary>>(
     ({ item }) => (
       <View style={styles.cell}>
-        <CountryCard country={item} onPress={openDetails} />
+        <CountryCard
+          country={item}
+          isFavorite={isFavorite(item.code)}
+          onPress={openDetails}
+          onToggleFavorite={toggleFavorite}
+        />
       </View>
     ),
-    [openDetails],
+    [openDetails, isFavorite, toggleFavorite],
   );
 
   if (loading && !hasData) return <LoadingView message="Carregando países…" />;

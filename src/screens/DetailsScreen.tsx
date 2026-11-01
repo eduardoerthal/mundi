@@ -2,10 +2,12 @@ import { useCallback, useEffect } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ErrorView } from '../components/ErrorView';
+import { FavoriteButton } from '../components/FavoriteButton';
 import { FlagImage } from '../components/FlagImage';
 import { InfoRow } from '../components/InfoRow';
 import { LoadingView } from '../components/LoadingView';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { useFavorites } from '../hooks/useFavorites';
 import { useFetch } from '../hooks/useFetch';
 import { AppStackScreenProps } from '../navigation/types';
 import { getByCode, getNeighbors } from '../services/countriesService';
@@ -17,6 +19,7 @@ type Props = AppStackScreenProps<'Details'>;
 
 export function DetailsScreen({ route, navigation }: Props) {
   const { code } = route.params;
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const { data: country, loading, error, refetch } = useFetch(
     (signal) => getByCode(code, signal),
@@ -61,10 +64,20 @@ export function DetailsScreen({ route, navigation }: Props) {
         style={styles.flag}
       />
 
-      <Text style={styles.title} accessibilityRole="header">
-        {country.name}
-      </Text>
-      <Text style={styles.subtitle}>{country.officialName}</Text>
+      <View style={styles.titleRow}>
+        <View style={styles.titleTexts}>
+          <Text style={styles.title} accessibilityRole="header">
+            {country.name}
+          </Text>
+          <Text style={styles.subtitle}>{country.officialName}</Text>
+        </View>
+        <FavoriteButton
+          active={isFavorite(country.code)}
+          countryName={country.name}
+          onPress={() => toggleFavorite(country)}
+          size={30}
+        />
+      </View>
 
       <View style={styles.card}>
         <InfoRow icon="business-outline" label="Capital" value={country.capital ?? 'Não informado'} />
@@ -128,6 +141,14 @@ const styles = StyleSheet.create({
   flag: {
     width: '100%',
     marginBottom: spacing.lg,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  titleTexts: {
+    flex: 1,
   },
   title: {
     fontSize: fontSize.xxl,
