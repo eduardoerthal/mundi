@@ -1,34 +1,156 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useLayoutEffect } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  ListRenderItem,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
-import { PrimaryButton } from '../components/PrimaryButton';
+import { CountryCard } from '../components/CountryCard';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorView } from '../components/ErrorView';
+import { IconButton } from '../components/IconButton';
+import { LoadingView } from '../components/LoadingView';
+import { RegionFilter } from '../components/RegionFilter';
 import { useAuth } from '../hooks/useAuth';
+import { useCountries } from '../hooks/useCountries';
+import { AppStackScreenProps } from '../navigation/types';
+import { CountrySummary } from '../types/country';
 import { colors } from '../theme/colors';
 import { fontSize, spacing } from '../theme/spacing';
 
-// Versão provisória: o catálogo completo entra na etapa RF01.
-export function CatalogScreen() {
-  const { user, signOut } = useAuth();
+type Props = AppStackScreenProps<'Catalog'>;
+
+const keyExtractor = (item: CountrySummary) => item.code;
+
+export function CatalogScreen({ navigation }: Props) {
+  const { signOut } = useAuth();
+  const {
+    countries,
+    totalCount,
+    hasData,
+    region,
+    setRegion,
+    loading,
+    refreshing,
+    loadingMore,
+    error,
+    loadMore,
+    refresh,
+    retry,
+  } = useCountries();
+
+  const confirmSignOut = useCallback(() => {
+    Alert.alert('Sair da conta', 'Deseja mesmo sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: signOut },
+    ]);
+  }, [signOut]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={styles.headerActions}>
+          <IconButton icon="log-out-outline" label="Sair da conta" onPress={confirmSignOut} />
+        </View>
+      ),
+    });
+  }, [navigation, confirmSignOut]);
+
+  const openDetails = useCallback(
+    (country: CountrySummary) => navigation.navigate('Details', { code: country.code }),
+    [navigation],
+  );
+
+  const renderItem = useCallback<ListRenderItem<CountrySummary>>(
+    ({ item }) => (
+      <View style={styles.cell}>
+        <CountryCard country={item} onPress={openDetails} />
+      </View>
+    ),
+    [openDetails],
+  );
+
+  if (loading && !hasData) return <LoadingView message="Carregando países…" />;
+  if (error && !hasData) return <ErrorView message={error.message} onRetry={retry} />;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.text} accessibilityRole="header">
-        Olá, {user?.name}!
-      </Text>
-      <PrimaryButton title="Sair" icon="log-out-outline" variant="outline" onPress={signOut} />
-    </View>
+    <FlatList
+      data={countries}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      numColumns={2}
+      contentContainerStyle={styles.list}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={refresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
+      ListHeaderComponent={
+        <View>
+          <RegionFilter value={region} onChange={setRegion} />
+          {error ? (
+            <Text style={styles.inlineError} accessibilityRole="alert">
+              {error.message} Puxe a lista para baixo para tentar de novo.
+            </Text>
+          ) : null}
+          <Text style={styles.count} accessibilityLiveRegion="polite">
+            {totalCount} {totalCount === 1 ? 'país' : 'países'}
+          </Text>
+        </View>
+      }
+      ListEmptyComponent={
+        <EmptyState icon="earth-outline" title="Nenhum país nesta região" />
+      }
+      ListFooterComponent={
+        loadingMore ? (
+          <ActivityIndicator
+            style={styles.footer}
+            color={colors.primary}
+            accessibilityLabel="Carregando mais países"
+          />
+        ) : undefined
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-    gap: spacing.lg,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  text: {
-    fontSize: fontSize.xl,
-    color: colors.text,
-    textAlign: 'center',
+  list: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xxl,
+  },
+  // Cada célula ocupa metade da linha, inclusive a última quando é ímpar.
+  cell: {
+    width: '50%',
+    padding: spacing.sm,
+  },
+  count: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+  },
+  inlineError: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    fontSize: fontSize.sm,
+    color: colors.danger,
+  },
+  footer: {
+    paddingVertical: spacing.xl,
   },
 });
