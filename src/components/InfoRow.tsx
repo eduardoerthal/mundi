@@ -14,7 +14,7 @@ interface Props {
 // Linha "rótulo: valor" sem altura fixa; o texto quebra com a fonte aumentada.
 export function InfoRow({ icon, label, value }: Props) {
   return (
-    <View style={styles.row} accessible accessibilityLabel={`${label}: ${value}`}>
+    <View style={styles.row} accessible accessibilityRole="text" accessibilityLabel={`${label}: ${value}`}>
       <Ionicons name={icon} size={22} color={colors.primary} style={styles.icon} />
       <View style={styles.texts}>
         <Text style={styles.label}>{label}</Text>

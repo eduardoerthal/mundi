@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 
 export interface ApiCountry {
+  uuid?: string;
   names?: { common?: string; official?: string };
   codes?: { alpha_3?: string };
   flag?: { url_png?: string; url_svg?: string; description?: string };
@@ -17,6 +18,7 @@ export interface ApiCountry {
   borders?: string[];
   timezones?: string[];
   links?: { google_maps?: string; open_street_maps?: string };
+  descriptions?: { long?: string; short?: string };
 }
 
 export interface ApiListMeta {
@@ -43,7 +45,10 @@ export const REGIONS = ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania'] as co
 export type Region = (typeof REGIONS)[number];
 export type RegionFilterValue = Region | 'all';
 
-/** Item do catálogo e da busca. `code` = cca3 (alpha-3). */
+/**
+ * Item do catálogo e da busca. `code` = cca3 (alpha-3); para os poucos
+ * territórios sem cca3 na API (ex.: Somaliland), usa o `uuid` do registro.
+ */
 export interface CountrySummary {
   code: string;
   name: string;
@@ -56,6 +61,8 @@ export interface CountrySummary {
 
 export interface CountryDetails extends CountrySummary {
   officialName: string;
+  /** Texto livre da API, já limpo por stripHtml. */
+  description: string | null;
   subregion: string | null;
   area: number | null;
   languages: string[];

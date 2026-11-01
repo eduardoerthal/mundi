@@ -15,6 +15,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ErrorView } from '../components/ErrorView';
 import { IconButton } from '../components/IconButton';
 import { LoadingView } from '../components/LoadingView';
+import { PrimaryButton } from '../components/PrimaryButton';
 import { RegionFilter } from '../components/RegionFilter';
 import { useAuth } from '../hooks/useAuth';
 import { useCountries } from '../hooks/useCountries';
@@ -41,7 +42,9 @@ export function CatalogScreen({ navigation }: Props) {
     refreshing,
     loadingMore,
     error,
+    loadMoreError,
     loadMore,
+    retryLoadMore,
     refresh,
     retry,
   } = useCountries();
@@ -97,8 +100,11 @@ export function CatalogScreen({ navigation }: Props) {
     [openDetails, isFavorite, toggleFavorite],
   );
 
-  if (loading && !hasData) return <LoadingView message="Carregando países…" />;
-  if (error && !hasData) return <ErrorView message={error.message} onRetry={retry} />;
+  // Tela cheia só na primeira carga; ao trocar de região o filtro continua visível.
+  if (region === 'all' && !hasData) {
+    if (loading) return <LoadingView message="Carregando países…" />;
+    if (error) return <ErrorView message={error.message} onRetry={retry} />;
+  }
 
   return (
     <FlatList
@@ -120,7 +126,7 @@ export function CatalogScreen({ navigation }: Props) {
       ListHeaderComponent={
         <View>
           <RegionFilter value={region} onChange={setRegion} />
-          {error ? (
+          {error && hasData ? (
             <Text style={styles.inlineError} accessibilityRole="alert">
               {error.message} Puxe a lista para baixo para tentar de novo.
             </Text>
@@ -131,7 +137,18 @@ export function CatalogScreen({ navigation }: Props) {
         </View>
       }
       ListEmptyComponent={
-        <EmptyState icon="earth-outline" title="Nenhum país nesta região" />
+        loading ? (
+          <ActivityIndicator
+            style={styles.footer}
+            size="large"
+            color={colors.primary}
+            accessibilityLabel="Carregando países"
+          />
+        ) : error ? (
+          <ErrorView message={error.message} onRetry={retry} />
+        ) : (
+          <EmptyState icon="earth-outline" title="Nenhum país nesta região" />
+        )
       }
       ListFooterComponent={
         loadingMore ? (
@@ -140,6 +157,20 @@ export function CatalogScreen({ navigation }: Props) {
             color={colors.primary}
             accessibilityLabel="Carregando mais países"
           />
+        ) : loadMoreError ? (
+          // A API caiu no meio da rolagem: mantém o que já carregou e oferece nova tentativa.
+          <View style={styles.footerError}>
+            <Text style={styles.footerErrorText} accessibilityRole="alert">
+              {loadMoreError.message}
+            </Text>
+            <PrimaryButton
+              title="Tentar novamente"
+              icon="refresh"
+              variant="outline"
+              onPress={retryLoadMore}
+              accessibilityHint="Busca a próxima página de países"
+            />
+          </View>
         ) : undefined
       }
     />
@@ -174,5 +205,14 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingVertical: spacing.xl,
+  },
+  footerError: {
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  footerErrorText: {
+    fontSize: fontSize.md,
+    color: colors.danger,
+    textAlign: 'center',
   },
 });

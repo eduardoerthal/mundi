@@ -34,7 +34,7 @@ function CountryCardComponent({ country, isFavorite, onPress, onToggleFavorite }
           countryName={country.name}
           description={country.flagDescription}
         />
-        <Text style={styles.name} numberOfLines={3}>
+        <Text style={styles.name}>
           {country.name}
         </Text>
       </Pressable>

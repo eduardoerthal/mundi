@@ -1,96 +1,119 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PAGE_SIZE } from '../constants';
 import { AppError, toAppError } from '../services/api';
-import { getAll } from '../services/countriesService';
+import { getPage } from '../services/countriesService';
 import { CountrySummary, RegionFilterValue } from '../types/country';
 
-// Atraso curto ao anexar a próxima fatia: deixa o footer com o
-// ActivityIndicator aparecer e segura disparos repetidos do onEndReached.
-const LOAD_MORE_DELAY_MS = 250;
+type LoadMode = 'initial' | 'refresh' | 'more';
 
 /**
- * Catálogo com PAGINAÇÃO NO CLIENTE.
+ * Catálogo com PAGINAÇÃO NO SERVIDOR (rolagem infinita).
  *
- * A lista completa (~250 países) é buscada uma vez em getAll() e guardada em
- * memória. A FlatList recebe só `visible`, que cresce de PAGE_SIZE em PAGE_SIZE
- * a cada loadMore(). Assim o filtro por região é instantâneo, e a cota mensal
- * da API (1.000 requisições no plano grátis) é gasta só na carga e no refresh.
+ * Cada página é um GET com limit=PAGE_SIZE e offset = itens já carregados.
+ * loadMore() anexa a próxima página à lista; refresh() e a troca de região
+ * recomeçam do offset 0. O filtro por região também é aplicado no servidor.
+ *
+ * Proteções: flags `loadingMore`/`hasMore` evitam disparos em rajada do
+ * onEndReached, e um AbortController cancela a requisição anterior quando a
+ * região muda ou a tela desmonta (resposta antiga nunca entra na lista).
  */
 export function useCountries() {
-  const [all, setAll] = useState<CountrySummary[]>([]);
+  const [countries, setCountries] = useState<CountrySummary[]>([]);
   const [region, setRegionState] = useState<RegionFilterValue>('all');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
+  /** Falha ao buscar a PRÓXIMA página: a lista atual continua na tela. */
+  const [loadMoreError, setLoadMoreError] = useState<AppError | null>(null);
 
   const controllerRef = useRef<AbortController | null>(null);
-  const loadMoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Espelho síncrono de loadingMore: dois onEndReached no mesmo frame
+  // ainda veriam o state antigo.
+  const busyRef = useRef(false);
 
-  const fetchAll = useCallback(async (mode: 'initial' | 'refresh') => {
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
+  const load = useCallback(
+    async (mode: LoadMode, offset: number, regionValue: RegionFilterValue) => {
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      busyRef.current = true;
 
-    if (mode === 'initial') setLoading(true);
-    else setRefreshing(true);
-    setError(null);
+      if (mode === 'initial') setLoading(true);
+      if (mode === 'refresh') setRefreshing(true);
+      if (mode === 'more') setLoadingMore(true);
+      if (mode === 'more') setLoadMoreError(null);
+      else setError(null);
 
-    try {
-      const countries = await getAll(controller.signal);
-      if (controller.signal.aborted) return;
-      setAll(countries);
-      setVisibleCount(PAGE_SIZE); // refresh volta para a primeira fatia
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setError(toAppError(err));
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-        setRefreshing(false);
+      try {
+        const page = await getPage(
+          { offset, limit: PAGE_SIZE, region: regionValue === 'all' ? undefined : regionValue },
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+
+        setCountries((prev) => {
+          if (mode !== 'more') return page.items;
+          // Defesa extra contra duplicatas caso a base mude entre páginas.
+          const seen = new Set(prev.map((c) => c.code));
+          return [...prev, ...page.items.filter((c) => !seen.has(c.code))];
+        });
+        setTotalCount(page.total);
+        setHasMore(page.hasMore);
+        if (mode !== 'more') setLoadMoreError(null);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        if (mode === 'more') setLoadMoreError(toAppError(err));
+        else setError(toAppError(err));
+      } finally {
+        if (!controller.signal.aborted) {
+          busyRef.current = false;
+          setLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+        }
       }
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
-    fetchAll('initial');
-    return () => {
-      controllerRef.current?.abort();
-      if (loadMoreTimer.current) clearTimeout(loadMoreTimer.current);
-    };
-  }, [fetchAll]);
-
-  const filtered = useMemo(
-    () => (region === 'all' ? all : all.filter((c) => c.region === region)),
-    [all, region],
-  );
-  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
-  const hasMore = visibleCount < filtered.length;
+    load('initial', 0, 'all');
+    return () => controllerRef.current?.abort();
+  }, [load]);
 
   const loadMore = useCallback(() => {
-    // Protege contra rajadas: ignora enquanto carrega ou quando acabou.
-    if (loading || loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    loadMoreTimer.current = setTimeout(() => {
-      setVisibleCount((count) => count + PAGE_SIZE);
-      setLoadingMore(false);
-    }, LOAD_MORE_DELAY_MS);
-  }, [loading, loadingMore, hasMore]);
+    // Não dispara em rajada, nem depois do fim, nem em loop após um erro
+    // (o usuário tenta de novo pelo botão do footer).
+    if (busyRef.current || loading || !hasMore || loadMoreError) return;
+    load('more', countries.length, region);
+  }, [load, loading, hasMore, loadMoreError, countries.length, region]);
 
-  const setRegion = useCallback((value: RegionFilterValue) => {
-    setRegionState(value);
-    setVisibleCount(PAGE_SIZE); // trocar o filtro reinicia a paginação
-  }, []);
+  const retryLoadMore = useCallback(() => {
+    if (busyRef.current) return;
+    load('more', countries.length, region);
+  }, [load, countries.length, region]);
 
-  const refresh = useCallback(() => fetchAll('refresh'), [fetchAll]);
-  const retry = useCallback(() => fetchAll('initial'), [fetchAll]);
+  const refresh = useCallback(() => load('refresh', 0, region), [load, region]);
+  const retry = useCallback(() => load('initial', 0, region), [load, region]);
+
+  const setRegion = useCallback(
+    (value: RegionFilterValue) => {
+      setRegionState(value);
+      setCountries([]); // troca de filtro reinicia a paginação
+      setHasMore(true);
+      load('initial', 0, value);
+    },
+    [load],
+  );
 
   return {
-    countries: visible,
-    totalCount: filtered.length,
-    hasData: all.length > 0,
+    countries,
+    totalCount,
+    hasData: countries.length > 0,
     region,
     setRegion,
     loading,
@@ -98,7 +121,9 @@ export function useCountries() {
     loadingMore,
     hasMore,
     error,
+    loadMoreError,
     loadMore,
+    retryLoadMore,
     refresh,
     retry,
   };

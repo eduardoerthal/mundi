@@ -32,10 +32,11 @@ export function DetailsScreen({ route, navigation }: Props) {
   );
 
   // Vizinhos só são buscados quando o país tem fronteiras.
-  const hasBorders = (country?.borders.length ?? 0) > 0;
+  const borders = country?.borders ?? [];
+  const hasBorders = borders.length > 0;
   const neighbors = useFetch(
-    (signal) => (hasBorders ? getNeighbors(code, signal) : Promise.resolve([])),
-    [code, hasBorders],
+    (signal) => (hasBorders ? getNeighbors(code, borders, signal) : Promise.resolve([])),
+    [code, borders.join(',')],
   );
 
   useEffect(() => {
@@ -83,6 +84,17 @@ export function DetailsScreen({ route, navigation }: Props) {
           size={30}
         />
       </View>
+
+      {country.description ? (
+        <View style={styles.about}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            Sobre
+          </Text>
+          {/* Texto livre da API, exibido já limpo por stripHtml (no service). */}
+          <Text style={styles.description}>{country.description}</Text>
+          <Text style={styles.sourceNote}>Descrição em inglês fornecida pela REST Countries.</Text>
+        </View>
+      ) : null}
 
       <View style={styles.visitedBox}>
         <PrimaryButton
@@ -186,6 +198,18 @@ const styles = StyleSheet.create({
   subtitle: {
     marginTop: spacing.xs,
     fontSize: fontSize.md,
+    color: colors.textMuted,
+  },
+  about: {
+    marginTop: spacing.sm,
+  },
+  description: {
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  sourceNote: {
+    marginTop: spacing.xs,
+    fontSize: fontSize.sm,
     color: colors.textMuted,
   },
   visitedBox: {
