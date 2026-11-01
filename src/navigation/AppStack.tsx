@@ -6,6 +6,7 @@ import { useVisited } from '../hooks/useVisited';
 import { CatalogScreen } from '../screens/CatalogScreen';
 import { DetailsScreen } from '../screens/DetailsScreen';
 import { FavoritesScreen } from '../screens/FavoritesScreen';
+import { SearchScreen } from '../screens/SearchScreen';
 import { VisitedScreen } from '../screens/VisitedScreen';
 import { stackScreenOptions } from './screenOptions';
 import { AppStackParamList } from './types';
@@ -26,6 +27,7 @@ export function AppStack() {
       <Stack.Screen name="Catalog" component={CatalogScreen} options={{ title: 'Mundi' }} />
       {/* O título final é definido pela tela com setOptions após carregar o país. */}
       <Stack.Screen name="Details" component={DetailsScreen} options={{ title: 'Detalhes' }} />
+      <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'Buscar' }} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ title: 'Favoritos' }} />
       <Stack.Screen name="Visited" component={VisitedScreen} options={{ title: 'Países visitados' }} />
     </Stack.Navigator>

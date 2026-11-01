@@ -58,6 +58,11 @@ export function CatalogScreen({ navigation }: Props) {
       headerRight: () => (
         <View style={styles.headerActions}>
           <IconButton
+            icon="search-outline"
+            label="Buscar país"
+            onPress={() => navigation.navigate('Search')}
+          />
+          <IconButton
             icon="heart-outline"
             label="Abrir favoritos"
             onPress={() => navigation.navigate('Favorites')}
